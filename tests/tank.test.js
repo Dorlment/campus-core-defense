@@ -62,6 +62,15 @@ test('config: 每个关卡地图为 13x13 且恰有一个基地', () => {
   });
 });
 
+test('config: 所有关卡的敌人刷新点均不在阻挡地形中', () => {
+  TB.LEVELS.forEach((lv, i) => {
+    const grid = TB.normalizeMap(lv.map);
+    TB.SPAWN_CELLS.forEach(({ r, c }) => {
+      assert.ok(!TB.solidForTank(grid[r][c]), `Level${i + 1} 刷新点(${r},${c})可用`);
+    });
+  });
+});
+
 test('config: FIELD 为 GRID*CELL = 520', () => {
   assert.strictEqual(TB.CONFIG.FIELD, 520);
   assert.strictEqual(TB.CONFIG.GRID * TB.CONFIG.CELL, 520);
@@ -230,6 +239,18 @@ test('engine: 关卡过场 -> advanceLevel 进入下一关', () => {
   assert.strictEqual(g._levelTransition, false);
 });
 
+test('engine: advanceLevel 在非关卡切换状态不会误推进', () => {
+  const g = makeGame();
+  g.prepareLevel(0);
+  g.state = 'paused';
+  g._levelTransition = false;
+  g._pendingNextLevel = null;
+  g.advanceLevel();
+  assert.strictEqual(g.state, 'paused');
+  assert.strictEqual(g.levelIndex, 0);
+  assert.strictEqual(g._pendingNextLevel, null);
+});
+
 test('engine: 最后一关清空敌人则胜利', () => {
   const g = makeGame();
   g.prepareLevel(TB.LEVELS.length - 1);
@@ -255,6 +276,22 @@ test('engine: 计分含连击倍率且封顶 x4', () => {
   g._enemyKilled(mk()); // 100 * 4 (封顶)
   assert.strictEqual(g.score, 1400);
   assert.strictEqual(g.comboCount, 5);
+});
+
+test('engine: 击杀间隔超过 COMBO_WINDOW 后连击重置', () => {
+  const g = makeGame();
+  const mk = () => {
+    const e = new TB.EnemyTank(0, 0, 'basic'); e.spawnAnim = 0; return e;
+  };
+  g.score = 0; g.comboCount = 0; g.now = 1000;
+  g._enemyKilled(mk());
+  assert.strictEqual(g.score, 100);
+  assert.strictEqual(g.comboCount, 1);
+
+  g.now += TB.CONFIG.COMBO_WINDOW + 1;
+  g._enemyKilled(mk());
+  assert.strictEqual(g.score, 200);
+  assert.strictEqual(g.comboCount, 1);
 });
 
 test('engine: 子弹击碎砖墙 / 钢墙依赖火力', () => {

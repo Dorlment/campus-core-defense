@@ -4,6 +4,6 @@
   "private": true,
   "description": "坦克大战 HTML5 游戏 · 单元测试",
   "scripts": {
-    "test": "node --test tests/"
+    "test": "node --test tests/tank.test.js"
   }
 }

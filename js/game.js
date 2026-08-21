@@ -376,6 +376,9 @@ TB.Game = class {
 
   _enemyKilled(e) {
     e.alive = false;
+    if (this.comboCount > 0 && this.now - this.lastKillAt > this.C.COMBO_WINDOW) {
+      this.comboCount = 0;
+    }
     const mult = Math.min(this.comboCount + 1, 4);
     const base = e.type.score;
     this.score += base * mult;
@@ -500,7 +503,7 @@ TB.Game = class {
   }
 
   advanceLevel() {
-    if (this._levelTransition != null) {
+    if (this._levelTransition === true) {
       const n = this._pendingNextLevel != null ? this._pendingNextLevel : this.levelIndex + 1;
       this._levelTransition = false;
       this._pendingNextLevel = null;

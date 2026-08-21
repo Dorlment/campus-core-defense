@@ -158,7 +158,7 @@ TB.LEVELS = [
     speedMul: 1.3,
     weights: { basic: 0.3, fast: 0.3, armor: 0.2, smart: 0.2 },
     map: [
-      "S.S.S.S.S.S.S",
+      "..S.S...S.S..",
       ".B.W.B.W.B.W.",
       "S.S.S.S.S.S.S",
       ".W.B.G.B.W.B.",
