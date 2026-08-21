@@ -6,7 +6,7 @@
 
 ## 在线试玩
 
-**在线试玩：待补充 GitHub Pages 地址**
+**在线试玩：https://dorlment.github.io/campus-core-defense/
 
 ## 项目特色
 
