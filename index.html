@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0e0f13" />
+  <title>坦克大战 · TANK BATTLE</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">坦克大战<small>TANK BATTLE</small></span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="btn-help" title="操作说明" aria-label="操作说明">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-settings" title="设置" aria-label="设置">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 6.8 19l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H2a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 3.3 6.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H8a1.7 1.7 0 0 0 1-1.5V2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V8a1.7 1.7 0 0 0 1.5 1H22a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <!-- 战场 -->
+      <section class="stage">
+        <div class="screen" id="screen">
+          <canvas id="game" width="520" height="520" aria-label="坦克大战战场"></canvas>
+          <div class="scanlines" aria-hidden="true"></div>
+
+          <!-- 关卡/胜利横幅 -->
+          <div class="banner" id="banner" aria-live="polite"></div>
+
+          <!-- 触屏控制 -->
+          <div class="touch-controls" id="touch" aria-hidden="true">
+            <div class="dpad">
+              <button class="dbtn up"    data-dir="up"    aria-label="上"></button>
+              <button class="dbtn left"  data-dir="left"  aria-label="左"></button>
+              <button class="dbtn right" data-dir="right" aria-label="右"></button>
+              <button class="dbtn down"  data-dir="down"  aria-label="下"></button>
+            </div>
+            <button class="fire-btn" data-fire="1" aria-label="射击">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 22v-3M5 12H2M22 12h-3M6 6l-2-2M18 6l2-2M6 18l-2 2M18 18l2 2"/><circle cx="12" cy="12" r="3.2"/></svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 信息栏 -->
+      <aside class="hud" id="hud">
+        <div class="hud-card hud-level">
+          <span class="hud-label">关卡 STAGE</span>
+          <span class="hud-value" id="hud-level">01</span>
+        </div>
+
+        <div class="hud-card hud-enemies">
+          <span class="hud-label">剩余敌军 ENEMIES</span>
+          <div class="enemy-pips" id="hud-enemies"></div>
+        </div>
+
+        <div class="hud-card hud-lives">
+          <span class="hud-label">生命 LIVES</span>
+          <div class="life-pips" id="hud-lives"></div>
+        </div>
+
+        <div class="hud-card hud-score">
+          <span class="hud-label">得分 SCORE</span>
+          <span class="hud-value mono" id="hud-score">000000</span>
+          <span class="hud-sub">最高 <span class="mono" id="hud-high">000000</span></span>
+        </div>
+
+        <div class="hud-card hud-power" id="hud-power-card">
+          <span class="hud-label">增益 POWER</span>
+          <span class="hud-value" id="hud-power">—</span>
+          <div class="power-bar"><span id="hud-power-fill"></span></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- 主菜单 -->
+    <div class="modal show" id="menu" role="dialog" aria-modal="true" aria-label="主菜单">
+      <div class="modal-inner">
+        <div class="menu-emblem" aria-hidden="true"></div>
+        <h1 class="menu-title">坦克大战</h1>
+        <p class="menu-tag">经典俯视角坦克射击 · 即开即玩</p>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-start">开始游戏</button>
+          <button class="btn" id="btn-menu-help">操作说明</button>
+          <button class="btn" id="btn-menu-settings">设置</button>
+        </div>
+        <p class="menu-foot">方向键移动 · 空格 / J 射击 · P / Esc 暂停</p>
+      </div>
+    </div>
+
+    <!-- 暂停 -->
+    <div class="modal" id="pause" role="dialog" aria-modal="true" aria-label="暂停">
+      <div class="modal-inner">
+        <h2 class="modal-title">已暂停</h2>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-resume">继续</button>
+          <button class="btn" id="btn-pause-restart">重新开始</button>
+          <button class="btn" id="btn-pause-menu">返回主菜单</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 结束 -->
+    <div class="modal" id="gameover" role="dialog" aria-modal="true" aria-label="游戏结束">
+      <div class="modal-inner">
+        <h2 class="modal-title" id="over-title">游戏结束</h2>
+        <div class="result">
+          <div class="result-row"><span>本局得分</span><span class="mono" id="over-score">000000</span></div>
+          <div class="result-row"><span>历史最高</span><span class="mono" id="over-high">000000</span></div>
+          <div class="result-row best" id="over-best" hidden>新纪录！</div>
+        </div>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-again">再来一局</button>
+          <button class="btn" id="btn-over-menu">返回主菜单</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置 -->
+    <div class="modal" id="settings" role="dialog" aria-modal="true" aria-label="设置">
+      <div class="modal-inner modal-wide">
+        <h2 class="modal-title">设置</h2>
+
+        <div class="setting-row">
+          <div class="setting-meta"><span class="setting-name">背景音乐</span><span class="setting-desc">循环 BGM</span></div>
+          <button class="switch" id="sw-music" role="switch" aria-checked="true"><span></span></button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-meta"><span class="setting-name">音效</span><span class="setting-desc">射击 / 爆炸 / 道具</span></div>
+          <button class="switch" id="sw-sfx" role="switch" aria-checked="true"><span></span></button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-meta"><span class="setting-name">音量</span><span class="setting-desc" id="vol-label">70%</span></div>
+          <input type="range" id="vol" min="0" max="100" value="70" class="slider" />
+        </div>
+        <div class="setting-row">
+          <div class="setting-meta"><span class="setting-name">画质</span><span class="setting-desc">粒子与特效密度</span></div>
+          <div class="seg" id="seg-quality">
+            <button data-q="low">低</button>
+            <button data-q="medium">中</button>
+            <button data-q="high" class="active">高</button>
+          </div>
+        </div>
+
+        <h3 class="setting-head">按键映射</h3>
+        <div class="keymap" id="keymap"></div>
+        <button class="btn btn-ghost" id="btn-keymap-reset">恢复默认按键</button>
+
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-settings-close">完成</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 帮助 -->
+    <div class="modal" id="help" role="dialog" aria-modal="true" aria-label="操作说明">
+      <div class="modal-inner modal-wide">
+        <h2 class="modal-title">操作说明</h2>
+        <div class="help-grid">
+          <div class="help-item"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>坦克移动，朝向即开火方向</span></div>
+          <div class="help-item"><kbd>空格</kbd><kbd>J</kbd><span>发射子弹</span></div>
+          <div class="help-item"><kbd>P</kbd><kbd>Esc</kbd><span>暂停 / 继续</span></div>
+          <div class="help-item"><kbd>Enter</kbd><span>菜单确认 / 开始</span></div>
+          <div class="help-item"><kbd>R</kbd><span>结束后重新开始</span></div>
+        </div>
+        <h3 class="setting-head">道具</h3>
+        <div class="item-grid">
+          <div class="item-chip"><b class="ic ic-star"></b>星形 · 升级火力</div>
+          <div class="item-chip"><b class="ic ic-helmet"></b>头盔 · 无敌护盾 8s</div>
+          <div class="item-chip"><b class="ic ic-shovel"></b>铲子 · 强化基地</div>
+          <div class="item-chip"><b class="ic ic-timer"></b>定时器 · 冻结敌军</div>
+          <div class="item-chip"><b class="ic ic-bomb"></b>手雷 · 全屏清除</div>
+          <div class="item-chip"><b class="ic ic-tank"></b>坦克 · 奖励生命</div>
+        </div>
+        <p class="help-tip">摧毁全部敌军过关；保护基地（老鹰）不被击毁，生命耗尽或基地失守即结束。</p>
+        <div class="menu-buttons">
+          <button class="btn btn-primary" id="btn-help-close">明白了</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

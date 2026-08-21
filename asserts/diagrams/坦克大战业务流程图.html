@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>坦克大战 · 业务流程图</title>
+<style>
+  :root {
+    --menu: #2563eb;
+    --loop: #7c3aed;
+    --combat: #0d9488;
+    --outcome: #ea580c;
+    --ink: #1f2937;
+    --grid: #ececf2;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: #ffffff; color: var(--ink);
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 18px 20px 36px; }
+  header h1 { font-size: 21px; margin: 0 0 2px; }
+  header p { margin: 0 0 12px; color: #6b7280; font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 4px 0 12px; }
+  .legend .chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: #374151; }
+  .legend .sw { width: 15px; height: 15px; border-radius: 4px; border: 2px solid currentColor; background: #fff; }
+  .legend .sw.dia { border-radius: 2px; transform: rotate(45deg); width: 11px; height: 11px; }
+  .hint { font-size: 12px; color: #9ca3af; margin-left: auto; align-self: center; }
+  .stage {
+    border: 1px solid #ececf2; border-radius: 12px; background: #ffffff;
+    overflow: auto; max-height: 80vh; box-shadow: 0 1px 3px rgba(0,0,0,.04) inset;
+  }
+  svg { display: block; }
+  .node { cursor: pointer; }
+  .nodebox { transition: opacity .15s ease, stroke-width .15s ease; }
+  .node text { font-family: "Comic Sans MS", "Segoe Print", "STKaiti", "KaiTi", cursive, sans-serif;
+    fill: var(--ink); font-size: 14px; font-weight: 600; pointer-events: none; }
+  .node .sub { font-size: 11.5px; font-weight: 400; fill: #6b7280; }
+  .node .gtitle { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; }
+  .edge path.line { fill: none; stroke-width: 2.1; transition: opacity .15s ease, stroke-width .15s ease; }
+  .edge path.head { stroke-width: 1.6; transition: opacity .15s ease; }
+  .edge text { font-size: 12px; fill: #374151; font-weight: 600; pointer-events: none; font-family: "Segoe UI","PingFang SC",sans-serif; }
+  .edge .lbg { fill: #ffffff; stroke: none; }
+  svg.focus .node:not(.hl) { opacity: .15; }
+  svg.focus .edge:not(.hl) { opacity: .08; }
+  svg.focus .node.hl .nodebox { stroke-width: 3.6; }
+  svg.focus .edge.hl path.line { stroke-width: 3.2; }
+  .footnote { margin-top: 12px; font-size: 12px; color: #9ca3af; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>坦克大战 · 业务流程图</h1>
+    <p>关键路径：启动 → 菜单 → 主循环 → 碰撞命中 → 命数 / 过关判定 → 结局 · 悬停节点可高亮其相关连线</p>
+  </header>
+  <div class="legend" id="legend">
+    <span class="chip" style="color:var(--menu)"><span class="sw"></span>启动 &amp; 菜单</span>
+    <span class="chip" style="color:var(--loop)"><span class="sw"></span>游戏主循环</span>
+    <span class="chip" style="color:var(--combat)"><span class="sw dia"></span>碰撞 &amp; 战斗</span>
+    <span class="chip" style="color:var(--outcome)"><span class="sw"></span>结局 &amp; 流转</span>
+    <span class="hint">圆角矩形 = 起止 · 矩形 = 处理 · 菱形 = 判定</span>
+  </div>
+  <div class="stage">
+    <div id="host"></div>
+  </div>
+  <div class="footnote">
+    主循环（<code>_loop</code> / <code>update</code>）逐帧重复，直到 <b>敌人全灭</b>（通关）或 <b>命数耗尽</b>（结束）。
+    图中左侧回路表示“未触发条件时回到主循环继续下一帧”。
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const COLOR = { menu: "#2563eb", loop: "#7c3aed", combat: "#0d9488", outcome: "#ea580c" };
+  const rnd = (a) => (Math.random() * 2 - 1) * a;
+
+  // ---------- 数据：节点（精简关键流程） ----------
+  // type: start | proc | dec | end
+  const NODES = [
+    { id: "start", type: "start", group: "menu",   x: 250, y: 70,   w: 200, h: 56,
+      label: ["应用启动"] },
+    { id: "menu",  type: "proc",  group: "menu",   x: 230, y: 180,  w: 240, h: 56,
+      label: ["主菜单", "开始 / 帮助 / 设置"] },
+    { id: "sg",    type: "proc",  group: "menu",   x: 220, y: 310,  w: 260, h: 56,
+      label: ["startGame()", "加载关卡 · 生成玩家"] },
+    { id: "loop",  type: "proc",  group: "loop",   x: 240, y: 440,  w: 220, h: 56,
+      label: ["游戏主循环", "requestAnimationFrame"] },
+    { id: "update",type: "proc",  group: "loop",   x: 210, y: 570,  w: 280, h: 56,
+      label: ["update(dt)", "玩家·敌人AI·子弹·道具"] },
+    { id: "col",   type: "dec",   group: "combat", x: 235, y: 700,  w: 230, h: 78,
+      label: ["子弹碰撞?"] },
+    { id: "hit",   type: "proc",  group: "combat", x: 220, y: 850,  w: 260, h: 56,
+      label: ["命中处理", "敌死加分·掉道具 / 玩家受击"] },
+    { id: "life",  type: "dec",   group: "combat", x: 235, y: 1000, w: 230, h: 78,
+      label: ["命数耗尽?"] },
+    { id: "next",  type: "dec",   group: "loop",   x: 235, y: 1150, w: 230, h: 78,
+      label: ["敌人全灭?"] },
+    { id: "over",  type: "end",   group: "outcome",x: 600, y: 1000, w: 200, h: 64,
+      label: ["Game Over"] },
+    { id: "win",   type: "end",   group: "outcome",x: 600, y: 1150, w: 200, h: 64,
+      label: ["胜利通关"] },
+  ];
+
+  // ---------- 数据：连线 ----------
+  // fromSide / toSide: top | bottom | left | right
+  const EDGES = [
+    { from: "start", to: "menu",  fromSide: "bottom", toSide: "top" },
+    { from: "menu",  to: "sg",    fromSide: "bottom", toSide: "top", label: "开始" },
+    { from: "sg",    to: "loop",  fromSide: "bottom", toSide: "top", label: "加载" },
+    { from: "loop",  to: "update",fromSide: "bottom", toSide: "top" },
+    { from: "update",to: "col",   fromSide: "bottom", toSide: "top" },
+    { from: "col",   to: "hit",   fromSide: "bottom", toSide: "top", label: "是·命中" },
+    { from: "col",   to: "loop",  fromSide: "left",   toSide: "bottom", label: "否",
+      via: [[235, 739], [160, 739], [160, 468], [350, 468]] },
+    { from: "hit",   to: "life",  fromSide: "bottom", toSide: "top" },
+    { from: "life",  to: "next",  fromSide: "bottom", toSide: "top", label: "否·继续" },
+    { from: "life",  to: "over",  fromSide: "right",  toSide: "left",  label: "是" },
+    { from: "next",  to: "loop",  fromSide: "left",   toSide: "bottom", label: "否·继续",
+      via: [[235, 1189], [160, 1189], [160, 468], [350, 468]] },
+    { from: "next",  to: "win",   fromSide: "right",  toSide: "left",  label: "是" },
+  ];
+
+  const byId = {};
+  NODES.forEach((n) => (byId[n.id] = n));
+
+  function anchor(n, side) {
+    const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+    if (side === "top") return { x: cx, y: n.y };
+    if (side === "bottom") return { x: cx, y: n.y + n.h };
+    if (side === "left") return { x: n.x, y: cy };
+    return { x: n.x + n.w, y: cy };
+  }
+
+  // ---------- 手绘工具 ----------
+  function ptsPath(pts, close) {
+    let d = "M " + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+    for (let i = 1; i < pts.length; i++) d += " L " + pts[i][0].toFixed(1) + " " + pts[i][1].toFixed(1);
+    if (close) d += " Z";
+    return d;
+  }
+  function jRect(x, y, w, h) {
+    const j = 2.4;
+    return [
+      [x + rnd(j), y + rnd(j)],
+      [x + w + rnd(j), y + rnd(j)],
+      [x + w + rnd(j), y + h + rnd(j)],
+      [x + rnd(j), y + h + rnd(j)],
+    ];
+  }
+  function roughRect(x, y, w, h, color) {
+    const p1 = jRect(x, y, w, h);
+    const p2 = jRect(x, y, w, h);
+    return (
+      `<path class="nodebox" d="${ptsPath(p1, true)}" fill="#fff" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>` +
+      `<path class="nodebox" d="${ptsPath(p2, true)}" fill="none" stroke="${color}" stroke-width="1" stroke-linejoin="round" opacity="0.55"/>`
+    );
+  }
+  function roughDiamond(cx, cy, w, h, color) {
+    const j = 2.4;
+    const mk = () => ([
+      [cx + rnd(j), cy - h / 2 + rnd(j)],
+      [cx + w / 2 + rnd(j), cy + rnd(j)],
+      [cx + rnd(j), cy + h / 2 + rnd(j)],
+      [cx - w / 2 + rnd(j), cy + rnd(j)],
+    ]);
+    return (
+      `<path class="nodebox" d="${ptsPath(mk(), true)}" fill="#fff" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>` +
+      `<path class="nodebox" d="${ptsPath(mk(), true)}" fill="none" stroke="${color}" stroke-width="1" stroke-linejoin="round" opacity="0.55"/>`
+    );
+  }
+  function roughRound(x, y, w, h, r, color) {
+    const j = 2.2;
+    const X = (v) => (v + rnd(j)).toFixed(1);
+    const corner = (cx, cy, a0, a1) => {
+      let d = "";
+      const steps = 4;
+      for (let i = 0; i <= steps; i++) {
+        const a = a0 + (a1 - a0) * (i / steps);
+        const px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+        d += (i === 0 ? "L " : "L ") + px.toFixed(1) + " " + py.toFixed(1) + " ";
+      }
+      return d;
+    };
+    const build = () => {
+      const x2 = x + w, y2 = y + h;
+      return (
+        `M ${X(x + r)} ${X(y)} ` +
+        `L ${X(x2 - r)} ${X(y)} ` + corner(x2 - r, y + r, -Math.PI / 2, 0) +
+        `L ${X(x2)} ${X(y2 - r)} ` + corner(x2 - r, y2 - r, 0, Math.PI / 2) +
+        `L ${X(x + r)} ${X(y2)} ` + corner(x + r, y2 - r, Math.PI / 2, Math.PI) +
+        `L ${X(x)} ${X(y2 - r)} ` + corner(x + r, y + r, Math.PI, Math.PI * 1.5) + "Z"
+      );
+    };
+    return (
+      `<path class="nodebox" d="${build()}" fill="#fff" stroke="${color}" stroke-width="2.4" stroke-linejoin="round"/>` +
+      `<path class="nodebox" d="${build()}" fill="none" stroke="${color}" stroke-width="1" stroke-linejoin="round" opacity="0.55"/>`
+    );
+  }
+
+  function segPath(pts) {
+    // 双笔触手绘折线
+    const j = 1.6;
+    const mk = () => {
+      let d = "M " + (pts[0].x + rnd(j)).toFixed(1) + " " + (pts[0].y + rnd(j)).toFixed(1);
+      for (let i = 1; i < pts.length; i++) d += " L " + (pts[i].x + rnd(j)).toFixed(1) + " " + (pts[i].y + rnd(j)).toFixed(1);
+      return d;
+    };
+    return mk();
+  }
+  function arrowHead(x, y, ang, color) {
+    const s = 9;
+    const a1 = ang + Math.PI * 0.82, a2 = ang - Math.PI * 0.82;
+    const p1 = [x + Math.cos(a1) * s, y + Math.sin(a1) * s];
+    const p2 = [x + Math.cos(a2) * s, y + Math.sin(a2) * s];
+    return `<path class="head" d="M ${p1[0].toFixed(1)} ${p1[1].toFixed(1)} L ${x.toFixed(1)} ${y.toFixed(1)} L ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}" stroke="${color}" fill="none"/>`;
+  }
+
+  // ---------- 计算每条边的几何 ----------
+  function edgeGeom(e) {
+    const a = byId[e.from], b = byId[e.to];
+    const pts = [anchor(a, e.fromSide)];
+    if (e.via) e.via.forEach((v) => pts.push({ x: v[0], y: v[1] }));
+    pts.push(anchor(b, e.toSide));
+    return pts;
+  }
+
+  // ---------- 生成 SVG ----------
+  let svg = "";
+  svg += `<svg viewBox="0 0 940 1380" width="940" height="1380" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<defs><pattern id="grid" width="26" height="26" patternUnits="userSpaceOnUse">
+      <path d="M 26 0 L 0 0 0 26" fill="none" stroke="#eef0f4" stroke-width="1"/></pattern></defs>`;
+  svg += `<rect x="0" y="0" width="940" height="1380" fill="url(#grid)"/>`;
+
+  // 边（先画，置于节点下层）
+  EDGES.forEach((e) => {
+    const color = COLOR[byId[e.from].group] || "#555";
+    const pts = edgeGeom(e);
+    const last = pts[pts.length - 1], prev = pts[pts.length - 2];
+    const ang = Math.atan2(last.y - prev.y, last.x - prev.x);
+    svg += `<g class="edge" data-from="${e.from}" data-to="${e.to}">`;
+    svg += `<path class="line" d="${segPath(pts)}" stroke="${color}"/>`;
+    svg += `<path class="line" d="${segPath(pts)}" stroke="${color}" opacity="0.5"/>`;
+    svg += arrowHead(last.x, last.y, ang, color);
+    if (e.label) {
+      let lx, ly;
+      if (e.via && e.via.length) { lx = e.via[0][0] + 10; ly = e.via[0][1] - 6; }
+      else {
+        const mid = pts[Math.floor(pts.length / 2)];
+        lx = mid.x + 8; ly = mid.y - 6;
+      }
+      const w = e.label.length * 13 + 10;
+      svg += `<rect class="lbg" x="${(lx - 4).toFixed(1)}" y="${(ly - 13).toFixed(1)}" width="${w}" height="18" rx="3"/>`;
+      svg += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}">${e.label}</text>`;
+    }
+    svg += `</g>`;
+  });
+
+  // 节点
+  NODES.forEach((n) => {
+    const color = COLOR[n.group];
+    svg += `<g class="node" data-id="${n.id}">`;
+    const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+    if (n.type === "dec") {
+      svg += roughDiamond(cx, cy, n.w, n.h, color);
+    } else if (n.type === "start" || n.type === "end") {
+      svg += roughRound(n.x, n.y, n.w, n.h, 16, color);
+    } else {
+      svg += roughRect(n.x, n.y, n.w, n.h, color);
+    }
+    // 文本
+    const lines = n.label;
+    const lh = lines.length > 1 ? 17 : 0;
+    const startY = cy - (lines.length - 1) * lh / 2 + 4.5;
+    lines.forEach((ln, i) => {
+      const cls = i === 0 ? "" : " class=\"sub\"";
+      svg += `<text${cls} x="${cx.toFixed(1)}" y="${(startY + i * lh).toFixed(1)}" text-anchor="middle">${ln}</text>`;
+    });
+    svg += `</g>`;
+  });
+
+  svg += `</svg>`;
+  document.getElementById("host").innerHTML = svg;
+
+  // ---------- 悬停高亮 ----------
+  const svgEl = document.querySelector("#host svg");
+  const nodeEls = svgEl.querySelectorAll(".node");
+  const edgeEls = svgEl.querySelectorAll(".edge");
+
+  function clearFocus() {
+    svgEl.classList.remove("focus");
+    nodeEls.forEach((el) => el.classList.remove("hl"));
+    edgeEls.forEach((el) => el.classList.remove("hl"));
+  }
+  function focusNode(id) {
+    svgEl.classList.add("focus");
+    const rel = new Set();
+    edgeEls.forEach((el) => {
+      const f = el.getAttribute("data-from"), t = el.getAttribute("data-to");
+      if (f === id || t === id) { el.classList.add("hl"); rel.add(f); rel.add(t); }
+    });
+    nodeEls.forEach((el) => { if (rel.has(el.getAttribute("data-id"))) el.classList.add("hl"); });
+  }
+  nodeEls.forEach((el) => {
+    const id = el.getAttribute("data-id");
+    el.addEventListener("mouseenter", () => focusNode(id));
+    el.addEventListener("mouseleave", clearFocus);
+  });
+})();
+</script>
+</body>
+</html>

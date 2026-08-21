@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>坦克大战 · 系统架构图</title>
+<style>
+  :root {
+    --ink: #1f2937;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #ffffff;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 24px 48px; }
+  header h1 {
+    font-size: 26px; margin: 0 0 4px; letter-spacing: .5px;
+  }
+  header .sub { color: var(--muted); font-size: 14px; margin: 0 0 18px; line-height: 1.6; }
+  header .thesis {
+    font-size: 13.5px; color: #374151; background: #fafafa;
+    border-left: 4px solid #7c3aed; padding: 10px 14px; border-radius: 6px;
+    margin: 0 0 18px; line-height: 1.7;
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 0 0 14px;
+  }
+  .legend .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; color: #374151;
+  }
+  .legend .chip i {
+    width: 16px; height: 16px; border-radius: 4px; border: 2px solid;
+    display: inline-block;
+  }
+  .hint {
+    font-size: 12.5px; color: #9ca3af; margin: 0 0 10px;
+  }
+  .stage {
+    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.03);
+  }
+  svg#diagram { display: block; width: 100%; height: auto; }
+
+  /* hover 高亮逻辑 */
+  #diagram.hovering .node { opacity: .22; }
+  #diagram.hovering .node.on { opacity: 1; }
+  #diagram.hovering .edge { opacity: .10; }
+  #diagram.hovering .edge.on  { opacity: 1; }
+  .node, .edge { transition: opacity .16s ease; }
+  .node { cursor: pointer; }
+  .node .box-fill { transition: filter .16s ease; }
+  #diagram.hovering .node.on .box-fill { filter: drop-shadow(0 2px 6px rgba(0,0,0,.18)); }
+  text { user-select: none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>坦克大战 · 系统架构图</h1>
+      <p class="sub">TANK BATTLE — 基于全局 <code>TB</code> 命名空间的模块化前端游戏架构</p>
+      <div class="thesis">
+        <b>核心论点：</b>这是一个<b>数据驱动的分层架构</b>。视图/交互层负责启动并装配核心引擎；
+        核心引擎层作为中枢，统一编排实体、读取输入意图、触发音频，并调度渲染；
+        而一个独立的<b>数据/配置层</b>被几乎所有模块共享，使关卡、地形、敌种等都可被集中定义与调整。
+      </div>
+      <div class="legend" id="legend"></div>
+      <p class="hint">提示：将鼠标悬停在任意模块上，可高亮它所有的连接关系（连线 + 相邻模块）。</p>
+    </header>
+    <div class="stage">
+      <div id="host"></div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- 数据模型 ---------------- */
+  const LAYERS = {
+    view:   { name: "视图 / 交互层",   color: "#2563eb", fill: "#dbeafe" },
+    core:   { name: "核心引擎层",       color: "#7c3aed", fill: "#ede4ff" },
+    input:  { name: "输入层",           color: "#16a34a", fill: "#dcfce7" },
+    audio:  { name: "音频层",           color: "#db2777", fill: "#fce7f3" },
+    entity: { name: "实体层",           color: "#ea580c", fill: "#ffedd5" },
+    data:   { name: "数据 / 配置层",    color: "#0d9488", fill: "#ccfbf1" },
+  };
+
+  const NODES = [
+    { id: "view",   layer: "view",   label: "视图 / 交互层",  sub: "index.html · main.js",
+      x: 470, y: 40,  w: 280, h: 92 },
+    { id: "core",   layer: "core",   label: "核心引擎层",     sub: "game.js · TB.Game",
+      x: 470, y: 290, w: 280, h: 112 },
+    { id: "input",  layer: "input",  label: "输入层",         sub: "input.js · TB.Input",
+      x: 40,  y: 290, w: 210, h: 112 },
+    { id: "audio",  layer: "audio",  label: "音频层",         sub: "audio.js · TB.AudioManager",
+      x: 990, y: 290, w: 210, h: 112 },
+    { id: "data",   layer: "data",   label: "数据 / 配置层",  sub: "config.js · CONFIG/LEVELS",
+      x: 40,  y: 540, w: 260, h: 112 },
+    { id: "entity", layer: "entity", label: "实体层",         sub: "entities.js · Tank/Bullet/Item",
+      x: 660, y: 540, w: 260, h: 112 },
+  ];
+
+  const EDGES = [
+    { from: "view",   to: "core",   label: "启动 & onEvent", off: [0, -22] },
+    { from: "view",   to: "input",  label: "创建 Input" },
+    { from: "view",   to: "audio",  label: "音乐 / 音效" },
+    { from: "view",   to: "data",   label: "读取 CONFIG", off: [-55, -12] },
+    { from: "core",   to: "entity", label: "生成/更新/绘制", off: [-44, -34] },
+    { from: "core",   to: "data",   label: "读取 LEVELS", off: [20, -8] },
+    { from: "core",   to: "input",  label: "读取输入意图" },
+    { from: "core",   to: "audio",  label: "play() SFX" },
+    { from: "entity", to: "data",   label: "读取 POWER" },
+    { from: "entity", to: "core",   label: "调用 world", off: [44, 34] },
+    { from: "input",  to: "data",   label: "读取 KEYMAP" },
+  ];
+
+  const VB_W = 1240, VB_H = 720;
+
+  /* ---------------- 手绘工具 ---------------- */
+  const rnd = (a) => (Math.random() * 2 - 1) * a;
+  const f1 = (n) => n.toFixed(1);
+
+  // 一段手绘线条：两条略有偏移的二次贝塞尔，营造草图质感
+  function sketchSeg(x1, y1, x2, y2, bow) {
+    if (bow == null) bow = Math.abs(rnd(2)) + 1.6;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const c1x = mx + nx * bow + rnd(1.4), c1y = my + ny * bow + rnd(1.4);
+    const c2x = mx - nx * bow * 0.6 + rnd(1.4), c2y = my - ny * bow * 0.6 + rnd(1.4);
+    const j = () => rnd(1);
+    const d1 = `M ${f1(x1 + j())} ${f1(y1 + j())} Q ${f1(c1x)} ${f1(c1y)} ${f1(x2 + j())} ${f1(y2 + j())}`;
+    const d2 = `M ${f1(x1 + j())} ${f1(y1 + j())} Q ${f1(c2x)} ${f1(c2y)} ${f1(x2 + j())} ${f1(y2 + j())}`;
+    return [d1, d2];
+  }
+
+  function roughRect(x, y, w, h, stroke, fill) {
+    // 填充（圆角矩形，置于描边之下）
+    let s = `<rect class="box-fill" x="${x}" y="${y}" width="${w}" height="${h}" rx="11" fill="${fill}" stroke="none"/>`;
+    const sides = [
+      [x, y, x + w, y,     Math.abs(rnd(2)) + 1.6],
+      [x + w, y, x + w, y + h, -(Math.abs(rnd(2)) + 1.6)],
+      [x + w, y + h, x, y + h, Math.abs(rnd(2)) + 1.6],
+      [x, y + h, x, y,     -(Math.abs(rnd(2)) + 1.6)],
+    ];
+    for (const [x1, y1, x2, y2, bow] of sides) {
+      for (const d of sketchSeg(x1, y1, x2, y2, bow)) {
+        s += `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="2.2" stroke-linecap="round"/>`;
+      }
+    }
+    return s;
+  }
+
+  function arrowHead(px, py, dirx, diry, color) {
+    const ang = Math.atan2(diry, dirx);
+    const L = 13;
+    const a1 = ang + Math.PI - 0.42, a2 = ang + Math.PI + 0.42;
+    const x1 = px + Math.cos(a1) * L, y1 = py + Math.sin(a1) * L;
+    const x2 = px + Math.cos(a2) * L, y2 = py + Math.sin(a2) * L;
+    let s = "";
+    for (const d of sketchSeg(px, py, x1, y1, 0.6)) {
+      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/>`;
+    }
+    for (const d of sketchSeg(px, py, x2, y2, 0.6)) {
+      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/>`;
+    }
+    return s;
+  }
+
+  /* ---------------- 几何计算 ---------------- */
+  const byId = {};
+  NODES.forEach((n) => (byId[n.id] = n));
+  const center = (n) => ({ x: n.x + n.w / 2, y: n.y + n.h / 2 });
+
+  function borderPoint(n, tx, ty, gap) {
+    const c = center(n);
+    let dx = tx - c.x, dy = ty - c.y;
+    if (dx === 0 && dy === 0) return { x: c.x, y: c.y };
+    const sx = dx !== 0 ? (n.w / 2) / Math.abs(dx) : Infinity;
+    const sy = dy !== 0 ? (n.h / 2) / Math.abs(dy) : Infinity;
+    const s = Math.min(sx, sy);
+    let x = c.x + dx * s, y = c.y + dy * s;
+    const len = Math.hypot(dx, dy);
+    x += (dx / len) * gap; y += (dy / len) * gap;
+    return { x, y };
+  }
+
+  function edgeGeometry(e) {
+    const a = byId[e.from], b = byId[e.to];
+    const ca = center(a), cb = center(b);
+    const p1 = borderPoint(a, cb.x, cb.y, 11);
+    const p2 = borderPoint(b, ca.x, ca.y, 11);
+    let c1, c2, labelPt;
+    if (e.curve === "right") {
+      const rgt = Math.max(p1.x, p2.x) + 130;
+      c1 = { x: rgt, y: (p1.y + p2.y) / 2 - 50 };
+      c2 = { x: rgt, y: (p1.y + p2.y) / 2 + 50 };
+      labelPt = { x: rgt, y: (p1.y + p2.y) / 2 };
+    } else if (e.off) {
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      c1 = { x: mx + e.off[0], y: my + e.off[1] };
+      c2 = { x: mx + e.off[0] * 0.45, y: my + e.off[1] * 0.45 };
+      labelPt = { x: mx + e.off[0] * 1.05, y: my + e.off[1] * 1.05 };
+    } else {
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      const dx = p2.x - p1.x, dy = p2.y - p1.y, len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const bow = (Math.random() < 0.5 ? -1 : 1) * (Math.abs(rnd(5)) + 3);
+      c1 = { x: mx + nx * bow, y: my + ny * bow };
+      c2 = { x: mx + nx * bow * 0.5, y: my + ny * bow * 0.5 };
+      labelPt = { x: mx, y: my };
+    }
+    return { p1, p2, c1, c2, labelPt };
+  }
+
+  /* ---------------- 渲染 ---------------- */
+  function buildEdge(e) {
+    const L = LAYERS[byId[e.from].layer];
+    const g = edgeGeometry(e);
+    const color = L.color;
+    // 主连线（双笔触）
+    let s = `<g class="edge" data-from="${e.from}" data-to="${e.to}">`;
+    for (const d of sketchSeg(g.p1.x, g.p1.y, g.c1.x, g.c1.y, 2)) {
+      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>`;
+    }
+    for (const d of sketchSeg(g.c1.x, g.c1.y, g.c2.x, g.c2.y, 2)) {
+      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>`;
+    }
+    for (const d of sketchSeg(g.c2.x, g.c2.y, g.p2.x, g.p2.y, 2)) {
+      s += `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" opacity="0.9"/>`;
+    }
+    // 箭头方向
+    const tdx = g.p2.x - g.c2.x, tdy = g.p2.y - g.c2.y;
+    const tl = Math.hypot(tdx, tdy) || 1;
+    s += arrowHead(g.p2.x, g.p2.y, tdx / tl, tdy / tl, color);
+    // 标签（带白底，置于曲线中点，手写感）
+    const lp = g.labelPt || { x: (g.p1.x + g.p2.x) / 2, y: (g.p1.y + g.p2.y) / 2 };
+    const lx = lp.x, ly = lp.y;
+    const w = e.label.length * 12.5 + 16, h = 22;
+    s += `<rect x="${f1(lx - w / 2)}" y="${f1(ly - h / 2)}" width="${f1(w)}" height="${h}" rx="7" fill="#ffffff" stroke="${color}" stroke-width="1.3" opacity="0.96"/>`;
+    s += `<text x="${f1(lx)}" y="${f1(ly + 4.5)}" text-anchor="middle" font-size="12.5" font-weight="600" fill="${color}">${e.label}</text>`;
+    s += `</g>`;
+    return s;
+  }
+
+  function buildNode(n) {
+    const L = LAYERS[n.layer];
+    const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+    let s = `<g class="node" data-id="${n.id}">`;
+    s += roughRect(n.x, n.y, n.w, n.h, L.color, L.fill);
+    // 顶部小色条（强化层级识别）
+    s += `<rect x="${n.x + 10}" y="${n.y + 12}" width="34" height="6" rx="3" fill="${L.color}" opacity="0.85"/>`;
+    s += `<text x="${f1(cx)}" y="${f1(n.y + n.h / 2 - 2)}" text-anchor="middle" font-size="17" font-weight="700" fill="${L.color}">${n.label}</text>`;
+    s += `<text x="${f1(cx)}" y="${f1(n.y + n.h / 2 + 22)}" text-anchor="middle" font-size="12.5" font-weight="500" fill="#475569">${n.sub}</text>`;
+    s += `</g>`;
+    return s;
+  }
+
+  let svg = `<svg id="diagram" viewBox="0 0 ${VB_W} ${VB_H}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<defs>
+            <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+              <path d="M28 0 L0 0 0 28" fill="none" stroke="#ededed" stroke-width="1"/>
+            </pattern>
+          </defs>`;
+  svg += `<rect x="0" y="0" width="${VB_W}" height="${VB_H}" fill="#ffffff"/>`;
+  svg += `<rect x="0" y="0" width="${VB_W}" height="${VB_H}" fill="url(#grid)"/>`;
+  // 连接先画（在节点之下）
+  svg += `<g id="edges">`;
+  EDGES.forEach((e) => (svg += buildEdge(e)));
+  svg += `</g>`;
+  // 节点后画（覆盖连线端点）
+  svg += `<g id="nodes">`;
+  NODES.forEach((n) => (svg += buildNode(n)));
+  svg += `</g>`;
+  svg += `</svg>`;
+
+  document.getElementById("host").innerHTML = svg;
+
+  /* ---------------- 图例 ---------------- */
+  const legend = document.getElementById("legend");
+  Object.keys(LAYERS).forEach((k) => {
+    const L = LAYERS[k];
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.innerHTML = `<i style="background:${L.fill};border-color:${L.color}"></i>${L.name}`;
+    legend.appendChild(chip);
+  });
+
+  /* ---------------- 交互：悬停高亮 ---------------- */
+  const diagram = document.getElementById("diagram");
+  const nodeEls = Array.from(diagram.querySelectorAll(".node"));
+  const edgeEls = Array.from(diagram.querySelectorAll(".edge"));
+
+  function neighbors(id) {
+    const set = new Set();
+    edgeEls.forEach((e) => {
+      if (e.dataset.from === id) set.add(e.dataset.to);
+      if (e.dataset.to === id) set.add(e.dataset.from);
+    });
+    return set;
+  }
+
+  function highlight(id) {
+    diagram.classList.add("hovering");
+    const nb = neighbors(id);
+    edgeEls.forEach((e) => {
+      const on = e.dataset.from === id || e.dataset.to === id;
+      e.classList.toggle("on", on);
+    });
+    nodeEls.forEach((n) => {
+      const nid = n.dataset.id;
+      const on = nid === id || nb.has(nid);
+      n.classList.toggle("on", on);
+    });
+  }
+  function clear() {
+    diagram.classList.remove("hovering");
+    edgeEls.forEach((e) => e.classList.remove("on"));
+    nodeEls.forEach((n) => n.classList.remove("on"));
+  }
+
+  nodeEls.forEach((n) => {
+    n.addEventListener("mouseenter", () => highlight(n.dataset.id));
+    n.addEventListener("mouseleave", clear);
+  });
+})();
+</script>
+</body>
+</html>
