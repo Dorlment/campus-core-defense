@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-  <meta name="theme-color" content="#0e0f13" />
-  <title>坦克大战 · TANK BATTLE</title>
+  <meta name="theme-color" content="#050816" />
+  <title>校园核心防线 · CAMPUS CORE DEFENSE</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-text">坦克大战<small>TANK BATTLE</small></span>
+        <span class="brand-text">校园核心防线<small>CAMPUS CORE DEFENSE</small></span>
       </div>
       <div class="topbar-actions">
         <button class="icon-btn" id="btn-help" title="操作说明" aria-label="操作说明">
@@ -28,7 +28,7 @@
       <!-- 战场 -->
       <section class="stage">
         <div class="screen" id="screen">
-          <canvas id="game" width="520" height="520" aria-label="坦克大战战场"></canvas>
+          <canvas id="game" width="520" height="520" aria-label="校园核心防线战场"></canvas>
           <div class="scanlines" aria-hidden="true"></div>
 
           <!-- 关卡/胜利横幅 -->
@@ -52,12 +52,12 @@
       <!-- 信息栏 -->
       <aside class="hud" id="hud">
         <div class="hud-card hud-level">
-          <span class="hud-label">关卡 STAGE</span>
+          <span class="hud-label">防区 STAGE</span>
           <span class="hud-value" id="hud-level">01</span>
         </div>
 
         <div class="hud-card hud-enemies">
-          <span class="hud-label">剩余敌军 ENEMIES</span>
+          <span class="hud-label">入侵单位 HOSTILES</span>
           <div class="enemy-pips" id="hud-enemies"></div>
         </div>
 
@@ -73,7 +73,7 @@
         </div>
 
         <div class="hud-card hud-power" id="hud-power-card">
-          <span class="hud-label">增益 POWER</span>
+          <span class="hud-label">战术增益 POWER</span>
           <span class="hud-value" id="hud-power">—</span>
           <div class="power-bar"><span id="hud-power-fill"></span></div>
         </div>
@@ -88,17 +88,17 @@
     </main>
 
     <!-- 主菜单 -->
-    <div class="modal show" id="menu" role="dialog" aria-modal="true" aria-label="主菜单">
+    <div class="modal show" id="menu" role="dialog" aria-modal="true" aria-label="校园核心防线主菜单">
       <div class="modal-inner">
         <div class="menu-emblem" aria-hidden="true"></div>
-        <h1 class="menu-title">坦克大战</h1>
-        <p class="menu-tag">经典俯视角坦克射击 · 即开即玩</p>
+        <h1 class="menu-title">校园核心防线<small>CAMPUS CORE DEFENSE</small></h1>
+        <p class="menu-tag">守护校园数据核心</p>
         <div class="menu-buttons">
           <button class="btn btn-primary" id="btn-start">开始游戏</button>
           <button class="btn" id="btn-menu-help">操作说明</button>
           <button class="btn" id="btn-menu-settings">设置</button>
         </div>
-        <p class="menu-foot">方向键移动 · 空格 / J 射击 · P / Esc 暂停</p>
+        <p class="menu-foot">方向键移动 · 空格 / J 射击 · K EMP · P / Esc 暂停</p>
       </div>
     </div>
 
@@ -170,7 +170,7 @@
     <!-- 帮助 -->
     <div class="modal" id="help" role="dialog" aria-modal="true" aria-label="操作说明">
       <div class="modal-inner modal-wide">
-        <h2 class="modal-title">操作说明</h2>
+        <h2 class="modal-title">校园核心防线 · 操作说明</h2>
         <div class="help-grid">
           <div class="help-item"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>坦克移动，朝向即开火方向</span></div>
           <div class="help-item"><kbd>空格</kbd><kbd>J</kbd><span>发射子弹</span></div>
@@ -183,12 +183,12 @@
         <div class="item-grid">
           <div class="item-chip"><b class="ic ic-star"></b>星形 · 升级火力</div>
           <div class="item-chip"><b class="ic ic-helmet"></b>头盔 · 无敌护盾 8s</div>
-          <div class="item-chip"><b class="ic ic-shovel"></b>铲子 · 强化基地</div>
+          <div class="item-chip"><b class="ic ic-shovel"></b>铲子 · 强化数据核心</div>
           <div class="item-chip"><b class="ic ic-timer"></b>定时器 · 冻结敌军</div>
           <div class="item-chip"><b class="ic ic-bomb"></b>手雷 · 全屏清除</div>
           <div class="item-chip"><b class="ic ic-tank"></b>坦克 · 奖励生命</div>
         </div>
-        <p class="help-tip">摧毁全部敌军过关；保护基地（老鹰）不被击毁，生命耗尽或基地失守即结束。</p>
+        <p class="help-tip">清除全部入侵单位并守护校园数据核心；生命耗尽或数据核心失守即任务结束。</p>
         <div class="menu-buttons">
           <button class="btn btn-primary" id="btn-help-close">明白了</button>
         </div>

@@ -1,11 +1,18 @@
 /* ============================================================
-   坦克大战 · 核心引擎（状态机 / 主循环 / 碰撞 / 渲染）
+   校园核心防线 · 核心引擎（状态机 / 主循环 / 碰撞 / 渲染）
    ============================================================ */
 window.TB = window.TB || {};
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rectsOverlap = (ax, ay, aw, ah, bx, by, bw, bh) =>
   ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+const CAMPUS_TANK_COLORS = {
+  player: '#5ee7f7',
+  basic: '#d5def2',
+  fast: '#6fa8ff',
+  armor: '#a981f7',
+  smart: '#f05fae',
+};
 
 TB.Game = class {
   constructor(canvas, audio, input) {
@@ -140,6 +147,7 @@ TB.Game = class {
       this.player.x = x; this.player.y = y; this.player.dir = 0;
       this.player.alive = true; this.player.powerLevel = this.player.powerLevel || 0;
     }
+    this.player.color = CAMPUS_TANK_COLORS.player;
     this.player.invincibleUntil = this.now + (idle ? 0 : this.C.PLAYER.respawnInvincible);
   }
 
@@ -335,7 +343,7 @@ TB.Game = class {
       if (o === b || !o.alive) continue;
       if (o.owner !== b.owner && rectsOverlap(b.x, b.y, b.size, b.size, o.x, o.y, o.size, o.size)) {
         o.alive = false; b.alive = false;
-        this._explode((b.cx + o.cx) / 2, (b.cy + o.cy) / 2, '#ffd27a', false);
+        this._explode((b.cx + o.cx) / 2, (b.cy + o.cy) / 2, '#b8f3ff', false);
         return;
       }
     }
@@ -347,7 +355,7 @@ TB.Game = class {
         if (rectsOverlap(b.x, b.y, b.size, b.size, e.x + 2, e.y + 2, e.size - 4, e.size - 4)) {
           e.hp -= 1; b.alive = false;
           if (e.hp <= 0) this._enemyKilled(e);
-          else { this._explode(b.cx, b.cy, '#ffd27a', false); this.audio.play('hit'); }
+          else { this._explode(b.cx, b.cy, '#b8f3ff', false); this.audio.play('hit'); }
           return;
         }
       }
@@ -381,9 +389,10 @@ TB.Game = class {
     if (!chosen) return;
     const typeKey = TB.pickEnemyType(this.level.weights);
     const e = new TB.EnemyTank(chosen.x, chosen.y, typeKey);
+    e.color = CAMPUS_TANK_COLORS[typeKey];
     this.enemies.push(e);
     this.toSpawn--;
-    this._explode(chosen.x + 14, chosen.y + 14, '#f0a83c', false, 8);
+    this._explode(chosen.x + 14, chosen.y + 14, '#67e8f9', false, 8);
     this.audio.play('spawn');
   }
 
@@ -399,7 +408,7 @@ TB.Game = class {
     this.comboCount++;
     this.lastKillAt = this.now;
     this._recordEnemyDefeat(e);
-    this._explode(e.cx, e.cy, e.type.color, true);
+    this._explode(e.cx, e.cy, e.color, true);
     this.audio.play('explosion');
     this.shake = Math.max(this.shake, 6);
     // 掉落道具
@@ -459,7 +468,7 @@ TB.Game = class {
             e.alive = false;
             this.score += e.type.score;
             this._recordEnemyDefeat(e);
-            this._explode(e.cx, e.cy, e.type.color, true);
+            this._explode(e.cx, e.cy, e.color, true);
           }
         }
         this.audio.play('bigExplosion');
@@ -496,7 +505,7 @@ TB.Game = class {
     if (this.now < p.invincibleUntil || this.now < this.playerShieldUntil) return;
     p.alive = false;
     this.lives--;
-    this._explode(p.cx, p.cy, '#e8c170', true);
+    this._explode(p.cx, p.cy, '#67e8f9', true);
     this.audio.play('explosion');
     this.shake = Math.max(this.shake, 12);
     if (this.lives <= 0) { this._gameOver(); }
@@ -505,7 +514,7 @@ TB.Game = class {
 
   _baseDestroyed() {
     if (this.basePos) this.grid[this.basePos.r][this.basePos.c] = TB.TILE.EMPTY;
-    this._explode(this.basePos.c * this.C.CELL + 20, this.basePos.r * this.C.CELL + 20, '#e2554b', true);
+    this._explode(this.basePos.c * this.C.CELL + 20, this.basePos.r * this.C.CELL + 20, '#ff5ca8', true);
     this.audio.play('bigExplosion');
     this.shake = 16;
     this._gameOver();
@@ -599,7 +608,7 @@ TB.Game = class {
     const remaining = this.toSpawn + this.enemies.filter((e) => e.alive).length;
     let power = null, powerTimer = 0, powerMax = 1;
     if (this.now < this.playerShieldUntil) { power = '无敌护盾'; powerTimer = this.playerShieldUntil - this.now; powerMax = this.C.ITEM_DURATION.helmet; }
-    else if (this.now < this.shovelUntil) { power = '强化基地'; powerTimer = this.shovelUntil - this.now; powerMax = this.C.ITEM_DURATION.shovel; }
+    else if (this.now < this.shovelUntil) { power = '强化核心'; powerTimer = this.shovelUntil - this.now; powerMax = this.C.ITEM_DURATION.shovel; }
     else if (this.now < this.enemyFrozenUntil) { power = '冻结敌军'; powerTimer = this.enemyFrozenUntil - this.now; powerMax = this.C.ITEM_DURATION.timer; }
     else if (this.player && this.player.powerLevel > 0) { power = '火力 Lv' + this.player.powerLevel; }
     this._emit({
@@ -618,10 +627,10 @@ TB.Game = class {
     ctx.clearRect(0, 0, this.FIELD, this.FIELD);
 
     // 背景
-    ctx.fillStyle = '#0b0c10';
+    ctx.fillStyle = '#040713';
     ctx.fillRect(0, 0, this.FIELD, this.FIELD);
     // 细网格
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = 'rgba(103,232,249,0.055)';
     ctx.lineWidth = 1;
     for (let i = 0; i <= this.C.GRID; i++) {
       const p = i * this.C.CELL + 0.5;
@@ -668,7 +677,7 @@ TB.Game = class {
 
     // 冻结覆盖
     if (this.now < this.enemyFrozenUntil) {
-      ctx.fillStyle = 'rgba(127,198,217,0.10)';
+      ctx.fillStyle = 'rgba(82,126,255,0.13)';
       ctx.fillRect(0, 0, this.FIELD, this.FIELD);
     }
 
@@ -678,7 +687,7 @@ TB.Game = class {
       const dy = (Math.random() - 0.5) * this.shake;
       ctx.setTransform(this.dpr, 0, 0, this.dpr, dx * this.dpr, dy * this.dpr);
       // 重新绘制一层边框遮挡抖动露白
-      ctx.strokeStyle = '#0b0c10'; ctx.lineWidth = this.shake * 2;
+      ctx.strokeStyle = '#040713'; ctx.lineWidth = this.shake * 2;
       ctx.strokeRect(0, 0, this.FIELD, this.FIELD);
     }
   }
@@ -696,7 +705,9 @@ TB.Game = class {
     const radius = progress * this.FIELD * 0.9;
     const alpha = (1 - progress) * 0.8;
     ctx.save();
-    ctx.strokeStyle = `rgba(80,220,255,${alpha})`;
+    ctx.strokeStyle = `rgba(103,232,249,${alpha})`;
+    ctx.shadowColor = 'rgba(139,92,246,0.65)';
+    ctx.shadowBlur = 14;
     ctx.lineWidth = 2 + (1 - progress) * 4;
     ctx.beginPath();
     ctx.arc(this.empEffectOrigin.x, this.empEffectOrigin.y, radius, 0, Math.PI * 2);
@@ -709,28 +720,28 @@ TB.Game = class {
     const x = c * C, y = r * C;
     switch (t) {
       case TB.TILE.BRICK: {
-        ctx.fillStyle = '#7a3a22'; ctx.fillRect(x, y, C, C);
-        ctx.fillStyle = '#b5562f';
+        ctx.fillStyle = '#542741'; ctx.fillRect(x, y, C, C);
+        ctx.fillStyle = '#984867';
         ctx.fillRect(x + 1, y + 1, C - 2, C / 2 - 2);
         ctx.fillRect(x + 1, y + C / 2 + 1, C - 2, C / 2 - 2);
-        ctx.fillStyle = '#5a2a18';
+        ctx.fillStyle = '#34172a';
         ctx.fillRect(x + C / 2 - 1, y + 1, 2, C / 2 - 2);
         ctx.fillRect(x + 1, y + C / 2 - 1, C / 2 - 2, 2);
         ctx.fillRect(x + C / 2 + 1, y + C / 2 - 1, C / 2 - 2, 2);
         break;
       }
       case TB.TILE.STEEL: {
-        ctx.fillStyle = '#545b66'; ctx.fillRect(x, y, C, C);
-        ctx.fillStyle = '#8a93a0';
+        ctx.fillStyle = '#253352'; ctx.fillRect(x, y, C, C);
+        ctx.fillStyle = '#7187ad';
         ctx.fillRect(x + 3, y + 3, C - 6, C - 6);
-        ctx.fillStyle = '#6b7280';
+        ctx.fillStyle = '#41567f';
         ctx.fillRect(x + C / 2 - 1, y + 3, 2, C - 6);
         ctx.fillRect(x + 3, y + C / 2 - 1, C - 6, 2);
         break;
       }
       case TB.TILE.WATER: {
-        ctx.fillStyle = '#2b5f86'; ctx.fillRect(x, y, C, C);
-        ctx.strokeStyle = 'rgba(160,210,235,0.5)'; ctx.lineWidth = 2;
+        ctx.fillStyle = '#0b3d6b'; ctx.fillRect(x, y, C, C);
+        ctx.strokeStyle = 'rgba(103,232,249,0.58)'; ctx.lineWidth = 2;
         const ph = (this.now / 400) % (C / 2);
         for (let i = 0; i < 2; i++) {
           const yy = y + 8 + i * (C / 2) + Math.sin(this.now / 300 + i) * 2 + (ph % (C / 2));
@@ -742,32 +753,31 @@ TB.Game = class {
         break;
       }
       case TB.TILE.ICE: {
-        ctx.fillStyle = 'rgba(127,198,217,0.32)'; ctx.fillRect(x, y, C, C);
-        ctx.strokeStyle = 'rgba(220,245,255,0.5)'; ctx.lineWidth = 1.5;
+        ctx.fillStyle = 'rgba(88,151,224,0.36)'; ctx.fillRect(x, y, C, C);
+        ctx.strokeStyle = 'rgba(199,245,255,0.62)'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(x + 6, y + C - 8); ctx.lineTo(x + C - 8, y + 6); ctx.stroke();
         break;
       }
       case TB.TILE.BASE: {
-        ctx.fillStyle = '#1a1c24'; ctx.fillRect(x, y, C, C);
-        // 老鹰标志
+        ctx.fillStyle = '#07142b'; ctx.fillRect(x, y, C, C);
+        // 校园数据核心标志
         ctx.save();
         ctx.translate(x + C / 2, y + C / 2);
-        ctx.fillStyle = '#f0a83c';
-        ctx.beginPath();
-        ctx.moveTo(0, -C * 0.28);
-        ctx.lineTo(C * 0.26, -C * 0.05);
-        ctx.lineTo(C * 0.16, C * 0.28);
-        ctx.lineTo(-C * 0.16, C * 0.28);
-        ctx.lineTo(-C * 0.26, -C * 0.05);
-        ctx.closePath(); ctx.fill();
-        ctx.fillStyle = '#1a1c24';
-        ctx.beginPath(); ctx.arc(0, -C * 0.04, C * 0.08, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#67e8f9';
+        ctx.shadowColor = 'rgba(103,232,249,0.65)';
+        ctx.shadowBlur = 8;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-C * 0.27, -C * 0.27, C * 0.54, C * 0.54);
+        ctx.fillStyle = '#8b5cf6';
+        ctx.fillRect(-C * 0.15, -C * 0.15, C * 0.3, C * 0.3);
+        ctx.fillStyle = '#eefcff';
+        ctx.fillRect(-C * 0.045, -C * 0.045, C * 0.09, C * 0.09);
         ctx.restore();
         break;
       }
       case TB.TILE.GRASS: {
-        ctx.fillStyle = 'rgba(74,138,74,0.82)'; ctx.fillRect(x, y, C, C);
-        ctx.fillStyle = 'rgba(120,180,120,0.7)';
+        ctx.fillStyle = 'rgba(26,105,101,0.86)'; ctx.fillRect(x, y, C, C);
+        ctx.fillStyle = 'rgba(72,190,168,0.68)';
         for (let i = 0; i < 5; i++) {
           const gx = x + 4 + (i * 7) % (C - 8);
           const gy = y + 4 + ((i * 11) % (C - 8));
@@ -782,7 +792,7 @@ TB.Game = class {
     const k = 1 - e.spawnAnim / 600;
     ctx.save();
     ctx.translate(e.cx, e.cy);
-    ctx.strokeStyle = '#f0a83c';
+    ctx.strokeStyle = '#67e8f9';
     ctx.lineWidth = 2;
     const s = e.size * (0.4 + k * 0.8);
     ctx.strokeRect(-s / 2, -s / 2, s, s);
