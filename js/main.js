@@ -4,6 +4,10 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const pad = (n, len) => String(n).padStart(len, '0');
+  const formatTime = (ms) => {
+    const total = Math.floor(ms / 1000);
+    return pad(Math.floor(total / 60), 2) + ':' + pad(total % 60, 2);
+  };
 
   const canvas = $('game');
   const audio = new TB.AudioManager();
@@ -43,6 +47,7 @@
     level: $('hud-level'), enemies: $('hud-enemies'), lives: $('hud-lives'),
     score: $('hud-score'), high: $('hud-high'),
     power: $('hud-power'), powerFill: $('hud-power-fill'), powerCard: $('hud-power-card'),
+    energy: $('hud-energy'), energyFill: $('hud-energy-fill'), energyReady: $('hud-energy-ready'),
   };
   let lastEnemies = -1, lastLives = -1;
   function updateHud(d) {
@@ -73,6 +78,11 @@
     else { hud.power.textContent = '—'; hud.powerCard.classList.add('inactive'); }
     if (d.powerTimer > 0) hud.powerFill.style.transform = 'scaleX(' + (d.powerTimer / d.powerMax) + ')';
     else hud.powerFill.style.transform = 'scaleX(1)';
+    hud.energy.textContent = d.energy + ' / ' + d.maxEnergy;
+    hud.energyFill.style.transform = 'scaleX(' + (d.energy / d.maxEnergy) + ')';
+    const empReady = d.energy >= d.maxEnergy;
+    hud.energyReady.textContent = empReady ? 'EMP READY · K' : '';
+    hud.energyReady.hidden = !empReady;
   }
 
   /* ---------------- 事件 ---------------- */
@@ -99,22 +109,26 @@
 
   function showGameOver(evt) {
     $('over-score').textContent = pad(evt.score, 6);
-    $('over-high').textContent = pad(evt.high, 6);
-    $('over-best').hidden = !evt.isNew;
+    $('over-kills').textContent = String(evt.kills);
+    $('over-time').textContent = formatTime(evt.elapsedTime);
+    $('over-grade').textContent = evt.grade;
     $('over-title').textContent = '游戏结束';
     showModal('gameover');
   }
   function showWin(evt) {
     $('over-score').textContent = pad(evt.score, 6);
-    $('over-high').textContent = pad(evt.high, 6);
-    $('over-best').hidden = !evt.isNew;
+    $('over-kills').textContent = String(evt.kills);
+    $('over-time').textContent = formatTime(evt.elapsedTime);
+    $('over-grade').textContent = evt.grade;
     $('over-title').textContent = '通关胜利';
     showModal('gameover');
   }
 
   /* ---------------- 动作（键盘） ---------------- */
   input.onAction = (action) => {
-    if (action === 'pause') {
+    if (action === 'skill') {
+      game.useEMP();
+    } else if (action === 'pause') {
       if (game.state === 'playing') game.pause();
       else if (game.state === 'paused' && !inTransition) game.resume();
     } else if (action === 'confirm') {

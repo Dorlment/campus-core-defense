@@ -102,6 +102,13 @@ test('config: 火力等级上限为 3 且最高级可破钢', () => {
   assert.strictEqual(TB.POWER_LEVELS[0].breakSteel, false);
 });
 
+test('config: EMP 参数与 K 键映射正确', () => {
+  assert.strictEqual(TB.CONFIG.EMP.maxEnergy, 100);
+  assert.strictEqual(TB.CONFIG.EMP.energyPerKill, 20);
+  assert.strictEqual(TB.CONFIG.EMP.freezeDuration, 2000);
+  assert.deepStrictEqual(TB.DEFAULT_KEYMAP.skill, ['KeyK']);
+});
+
 test('config: normalizeMap 映射字符并补齐/截断越界', () => {
   const g = TB.normalizeMap(['B', '..S']);
   assert.strictEqual(g.length, 13);
@@ -213,6 +220,19 @@ test('engine: 构造后为菜单态且关卡数据就绪', () => {
   assert.strictEqual(g.toSpawn, TB.LEVELS[0].enemyTotal);
 });
 
+test('engine: 旧版已存储键位会补入默认 EMP 键', () => {
+  const key = 'tankbattle.config';
+  const previous = store.has(key) ? store.get(key) : null;
+  store.set(key, JSON.stringify({ keymap: { fire: ['KeyF'] } }));
+  try {
+    const g = makeGame();
+    assert.deepStrictEqual(g.config.keymap.fire, ['KeyF']);
+    assert.deepStrictEqual(g.config.keymap.skill, ['KeyK']);
+  } finally {
+    if (previous == null) store.delete(key); else store.set(key, previous);
+  }
+});
+
 test('engine: 状态机 start->pause->resume', () => {
   const g = makeGame();
   g.startGame();
@@ -276,6 +296,31 @@ test('engine: 计分含连击倍率且封顶 x4', () => {
   g._enemyKilled(mk()); // 100 * 4 (封顶)
   assert.strictEqual(g.score, 1400);
   assert.strictEqual(g.comboCount, 5);
+});
+
+test('engine: 普通击毁增加 kills/energy 且同一敌人不重复统计', () => {
+  const g = makeGame();
+  const e = new TB.EnemyTank(0, 0, 'basic');
+  e.spawnAnim = 0;
+  g._enemyKilled(e);
+  assert.strictEqual(g.kills, 1);
+  assert.strictEqual(g.energy, TB.CONFIG.EMP.energyPerKill);
+
+  g._enemyKilled(e);
+  assert.strictEqual(g.kills, 1);
+  assert.strictEqual(g.energy, TB.CONFIG.EMP.energyPerKill);
+});
+
+test('engine: EMP 能量最大不超过 100', () => {
+  const g = makeGame();
+  g.energy = 90;
+  const e1 = new TB.EnemyTank(0, 0, 'basic');
+  const e2 = new TB.EnemyTank(40, 0, 'basic');
+  e1.spawnAnim = 0; e2.spawnAnim = 0;
+  g._enemyKilled(e1);
+  g._enemyKilled(e2);
+  assert.strictEqual(g.energy, 100);
+  assert.strictEqual(g.kills, 2);
 });
 
 test('engine: 击杀间隔超过 COMBO_WINDOW 后连击重置', () => {
@@ -388,6 +433,8 @@ test('engine: 道具效果 - 手雷清场并按分计奖', () => {
   g._applyItem('bomb');
   assert.ok(!e1.alive && !e2.alive);
   assert.strictEqual(g.score, 100 + 200);
+  assert.strictEqual(g.kills, 2);
+  assert.strictEqual(g.energy, TB.CONFIG.EMP.energyPerKill * 2);
 });
 
 test('engine: 玩家受击 - 无敌/护盾免疫，命数耗尽则结束', () => {
@@ -434,4 +481,133 @@ test('engine: saveHighScore 仅在新纪录时更新并返回布尔', () => {
   g.score = 100;
   assert.strictEqual(g.saveHighScore(), false);
   assert.strictEqual(g.highScore, 150);
+});
+
+/* ============================================================
+   4. EMP 与本局统计
+   ============================================================ */
+test('engine: 能量不足时不能释放 EMP', () => {
+  const g = makeGame();
+  g.state = 'playing';
+  g.energy = g.maxEnergy - 1;
+  const enemyBullet = new TB.Bullet(100, 100, 0, 'enemy', { speed: 200 });
+  g.bullets = [enemyBullet];
+  const frozenBefore = g.enemyFrozenUntil;
+
+  assert.strictEqual(g.useEMP(), false);
+  assert.strictEqual(g.energy, g.maxEnergy - 1);
+  assert.strictEqual(g.bullets.length, 1);
+  assert.strictEqual(g.enemyFrozenUntil, frozenBefore);
+});
+
+test('engine: 满能量 EMP 清敌弹、保留玩家弹、归零并冻结敌人', () => {
+  const g = makeGame();
+  g.state = 'playing';
+  g.now = 5000;
+  g.energy = g.maxEnergy;
+  const enemyBullet = new TB.Bullet(100, 100, 0, 'enemy', { speed: 200 });
+  const playerBullet = new TB.Bullet(120, 120, 0, 'player', { speed: 300 });
+  g.bullets = [enemyBullet, playerBullet];
+
+  const enemy = new TB.EnemyTank(200, 200, 'basic');
+  enemy.spawnAnim = 0;
+  g.enemies = [enemy];
+  const before = { x: enemy.x, y: enemy.y };
+
+  assert.strictEqual(g.useEMP(), true);
+  assert.strictEqual(g.energy, 0);
+  assert.strictEqual(g.bullets.length, 1);
+  assert.strictEqual(g.bullets[0], playerBullet);
+  assert.strictEqual(g.enemyFrozenUntil, g.now + TB.CONFIG.EMP.freezeDuration);
+  assert.ok(g.empEffectStartedAt != null);
+
+  enemy.update(0.5, g, g.player);
+  assert.deepStrictEqual({ x: enemy.x, y: enemy.y }, before);
+  assert.strictEqual(g.useEMP(), false, '同一次充能不能重复释放');
+});
+
+test('engine: 非 playing 状态不能释放 EMP', () => {
+  const g = makeGame();
+  for (const state of ['menu', 'paused', 'over', 'win']) {
+    g.state = state;
+    g.energy = g.maxEnergy;
+    assert.strictEqual(g.useEMP(), false, `${state} 状态不可释放`);
+    assert.strictEqual(g.energy, g.maxEnergy);
+  }
+});
+
+test('engine: 新游戏重置 energy/kills/elapsedTime', () => {
+  const g = makeGame();
+  g.state = 'over';
+  g.energy = 80;
+  g.kills = 7;
+  g.elapsedTime = 12345;
+  g.startGame();
+  assert.strictEqual(g.energy, 0);
+  assert.strictEqual(g.kills, 0);
+  assert.strictEqual(g.elapsedTime, 0);
+});
+
+test('engine: 下一关保留 energy/kills/elapsedTime', () => {
+  const g = makeGame();
+  g.energy = 60;
+  g.kills = 3;
+  g.elapsedTime = 9876;
+  g.state = 'playing';
+  g.toSpawn = 0;
+  g.enemies = [];
+  g._levelClear();
+  g.advanceLevel();
+  assert.strictEqual(g.levelIndex, 1);
+  assert.strictEqual(g.energy, 60);
+  assert.strictEqual(g.kills, 3);
+  assert.strictEqual(g.elapsedTime, 9876);
+});
+
+test('engine: elapsedTime 只在 playing 状态累计', () => {
+  const g = makeGame();
+  g.elapsedTime = 0;
+  g.state = 'playing';
+  g.update(0.5);
+  assert.strictEqual(g.elapsedTime, 500);
+
+  for (const state of ['paused', 'menu', 'over', 'win']) {
+    g.state = state;
+    g.update(0.5);
+  }
+  assert.strictEqual(g.elapsedTime, 500);
+});
+
+test('engine: calculateGrade 的 S/A/B/C 分数边界正确', () => {
+  const g = makeGame();
+  assert.strictEqual(g.calculateGrade(5000), 'S');
+  assert.strictEqual(g.calculateGrade(4999), 'A');
+  assert.strictEqual(g.calculateGrade(3000), 'A');
+  assert.strictEqual(g.calculateGrade(2999), 'B');
+  assert.strictEqual(g.calculateGrade(1500), 'B');
+  assert.strictEqual(g.calculateGrade(1499), 'C');
+});
+
+test('engine: 胜利和失败事件提供完整结算字段', () => {
+  for (const resultType of ['gameover', 'win']) {
+    const g = makeGame();
+    let result = null;
+    g.score = 3200;
+    g.kills = 9;
+    g.elapsedTime = 207000;
+    g.onEvent = (evt) => { if (evt.type === resultType) result = evt; };
+
+    if (resultType === 'gameover') {
+      g._gameOver();
+    } else {
+      g.prepareLevel(TB.LEVELS.length - 1);
+      g._levelClear();
+    }
+
+    assert.ok(result);
+    assert.strictEqual(result.score, 3200);
+    assert.strictEqual(result.kills, 9);
+    assert.strictEqual(result.elapsedTime, 207000);
+    assert.strictEqual(result.grade, 'A');
+  }
 });

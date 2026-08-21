@@ -77,6 +77,13 @@
           <span class="hud-value" id="hud-power">—</span>
           <div class="power-bar"><span id="hud-power-fill"></span></div>
         </div>
+
+        <div class="hud-card hud-energy">
+          <span class="hud-label">EMP ENERGY</span>
+          <span class="hud-value mono" id="hud-energy">0 / 100</span>
+          <div class="power-bar"><span id="hud-energy-fill" style="transform: scaleX(0)"></span></div>
+          <span class="hud-sub" id="hud-energy-ready" hidden>EMP READY · K</span>
+        </div>
       </aside>
     </main>
 
@@ -112,9 +119,10 @@
       <div class="modal-inner">
         <h2 class="modal-title" id="over-title">游戏结束</h2>
         <div class="result">
-          <div class="result-row"><span>本局得分</span><span class="mono" id="over-score">000000</span></div>
-          <div class="result-row"><span>历史最高</span><span class="mono" id="over-high">000000</span></div>
-          <div class="result-row best" id="over-best" hidden>新纪录！</div>
+          <div class="result-row"><span>最终得分</span><span class="mono" id="over-score">000000</span></div>
+          <div class="result-row"><span>击毁敌人</span><span class="mono" id="over-kills">0</span></div>
+          <div class="result-row"><span>游戏时间</span><span class="mono" id="over-time">00:00</span></div>
+          <div class="result-row"><span>评级</span><span class="mono" id="over-grade">C</span></div>
         </div>
         <div class="menu-buttons">
           <button class="btn btn-primary" id="btn-again">再来一局</button>
@@ -166,6 +174,7 @@
         <div class="help-grid">
           <div class="help-item"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd><span>坦克移动，朝向即开火方向</span></div>
           <div class="help-item"><kbd>空格</kbd><kbd>J</kbd><span>发射子弹</span></div>
+          <div class="help-item"><kbd>K</kbd><span>能量满时释放 EMP</span></div>
           <div class="help-item"><kbd>P</kbd><kbd>Esc</kbd><span>暂停 / 继续</span></div>
           <div class="help-item"><kbd>Enter</kbd><span>菜单确认 / 开始</span></div>
           <div class="help-item"><kbd>R</kbd><span>结束后重新开始</span></div>

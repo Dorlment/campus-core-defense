@@ -29,6 +29,10 @@ TB.Game = class {
     this.basePos = null;
 
     this.score = 0;
+    this.kills = 0;
+    this.elapsedTime = 0;
+    this.energy = 0;
+    this.maxEnergy = this.C.EMP.maxEnergy;
     this.lives = this.C.PLAYER.lives;
     this.levelIndex = 0;
     this.level = null;
@@ -41,6 +45,8 @@ TB.Game = class {
     this._shovelCells = [];
     this.comboCount = 0;
     this.lastKillAt = 0;
+    this.empEffectStartedAt = null;
+    this.empEffectOrigin = null;
 
     this.now = performance.now();
     this.lastTs = this.now;
@@ -73,7 +79,7 @@ TB.Game = class {
     const cfg = this._storageGet('tankbattle.config', null);
     if (cfg) {
       this.config = Object.assign(this.config, cfg);
-      if (!this.config.keymap) this.config.keymap = TB.DEFAULT_KEYMAP;
+      this.config.keymap = Object.assign({}, TB.DEFAULT_KEYMAP, this.config.keymap || {});
     } else {
       this.config.keymap = TB.DEFAULT_KEYMAP;
     }
@@ -140,8 +146,13 @@ TB.Game = class {
   startGame() {
     if (this.state === 'playing') return;
     this.score = 0;
+    this.kills = 0;
+    this.elapsedTime = 0;
+    this.energy = 0;
     this.lives = this.C.PLAYER.lives;
     this.comboCount = 0;
+    this.empEffectStartedAt = null;
+    this.empEffectOrigin = null;
     this._levelTransition = false;
     this._pendingNextLevel = null;
     if (this.player) this.player.powerLevel = 0;
@@ -173,6 +184,8 @@ TB.Game = class {
   }
 
   update(dt) {
+    if (this.state === 'playing') this.elapsedTime += dt * 1000;
+
     // 道具计时
     if (this.shovelUntil && this.now > this.shovelUntil) {
       this._revertShovel();
@@ -375,6 +388,7 @@ TB.Game = class {
   }
 
   _enemyKilled(e) {
+    if (!e.alive) return;
     e.alive = false;
     if (this.comboCount > 0 && this.now - this.lastKillAt > this.C.COMBO_WINDOW) {
       this.comboCount = 0;
@@ -384,6 +398,7 @@ TB.Game = class {
     this.score += base * mult;
     this.comboCount++;
     this.lastKillAt = this.now;
+    this._recordEnemyDefeat(e);
     this._explode(e.cx, e.cy, e.type.color, true);
     this.audio.play('explosion');
     this.shake = Math.max(this.shake, 6);
@@ -394,6 +409,29 @@ TB.Game = class {
       const c = Math.floor(e.cx / this.C.CELL);
       this.items.push(new TB.Item(typeKey, r, c));
     }
+  }
+
+  _recordEnemyDefeat(e) {
+    if (e._defeatRecorded) return false;
+    e._defeatRecorded = true;
+    this.kills++;
+    this.energy = Math.min(this.maxEnergy, this.energy + this.C.EMP.energyPerKill);
+    return true;
+  }
+
+  useEMP() {
+    if (this.state !== 'playing' || this.energy !== this.maxEnergy) return false;
+    this.energy = 0;
+    this.bullets = this.bullets.filter((b) => b.owner !== 'enemy');
+    this.enemyFrozenUntil = Math.max(
+      this.enemyFrozenUntil,
+      this.now + this.C.EMP.freezeDuration
+    );
+    const origin = this.player || { cx: this.FIELD / 2, cy: this.FIELD / 2 };
+    this.empEffectStartedAt = this.now;
+    this.empEffectOrigin = { x: origin.cx, y: origin.cy };
+    this.audio.play('freeze');
+    return true;
   }
 
   /* ---------------- 道具效果 ---------------- */
@@ -417,7 +455,12 @@ TB.Game = class {
         break;
       case 'bomb':
         for (const e of this.enemies) {
-          if (e.alive && e.spawnAnim <= 0) { e.alive = false; this.score += e.type.score; this._explode(e.cx, e.cy, e.type.color, true); }
+          if (e.alive && e.spawnAnim <= 0) {
+            e.alive = false;
+            this.score += e.type.score;
+            this._recordEnemyDefeat(e);
+            this._explode(e.cx, e.cy, e.type.color, true);
+          }
         }
         this.audio.play('bigExplosion');
         this.shake = Math.max(this.shake, 10);
@@ -487,6 +530,13 @@ TB.Game = class {
   }
 
   /* ---------------- 流转 ---------------- */
+  calculateGrade(score = this.score) {
+    if (score >= this.C.GRADE.S) return 'S';
+    if (score >= this.C.GRADE.A) return 'A';
+    if (score >= this.C.GRADE.B) return 'B';
+    return 'C';
+  }
+
   _levelClear() {
     this.audio.play('levelup');
     if (this.levelIndex + 1 < TB.LEVELS.length) {
@@ -498,7 +548,10 @@ TB.Game = class {
       this.state = 'win';
       const isNew = this.saveHighScore();
       this.audio.play('win');
-      this._emit({ type: 'win', score: this.score, high: this.highScore, isNew });
+      this._emit({
+        type: 'win', score: this.score, high: this.highScore, isNew,
+        kills: this.kills, elapsedTime: this.elapsedTime, grade: this.calculateGrade(),
+      });
     }
   }
 
@@ -516,7 +569,10 @@ TB.Game = class {
     const isNew = this.saveHighScore();
     this.comboCount = 0;
     this.audio.play('gameover');
-    this._emit({ type: 'gameover', score: this.score, high: this.highScore, isNew });
+    this._emit({
+      type: 'gameover', score: this.score, high: this.highScore, isNew,
+      kills: this.kills, elapsedTime: this.elapsedTime, grade: this.calculateGrade(),
+    });
   }
 
   pause() {
@@ -550,6 +606,7 @@ TB.Game = class {
       type: 'hud',
       score: this.score, high: this.highScore, lives: this.lives,
       level: this.levelIndex + 1, enemiesLeft: remaining,
+      energy: this.energy, maxEnergy: this.maxEnergy, empReady: this.energy === this.maxEnergy,
       power, powerTimer, powerMax,
     });
   }
@@ -606,6 +663,9 @@ TB.Game = class {
     }
     ctx.globalAlpha = 1;
 
+    // EMP 扩散圆（纯视觉，不参与碰撞）
+    this._drawEmpEffect(ctx);
+
     // 冻结覆盖
     if (this.now < this.enemyFrozenUntil) {
       ctx.fillStyle = 'rgba(127,198,217,0.10)';
@@ -621,6 +681,27 @@ TB.Game = class {
       ctx.strokeStyle = '#0b0c10'; ctx.lineWidth = this.shake * 2;
       ctx.strokeRect(0, 0, this.FIELD, this.FIELD);
     }
+  }
+
+  _drawEmpEffect(ctx) {
+    if (this.empEffectStartedAt == null || !this.empEffectOrigin) return;
+    const elapsed = this.now - this.empEffectStartedAt;
+    const duration = this.C.EMP.effectDuration;
+    if (elapsed > duration) {
+      this.empEffectStartedAt = null;
+      this.empEffectOrigin = null;
+      return;
+    }
+    const progress = clamp(elapsed / duration, 0, 1);
+    const radius = progress * this.FIELD * 0.9;
+    const alpha = (1 - progress) * 0.8;
+    ctx.save();
+    ctx.strokeStyle = `rgba(80,220,255,${alpha})`;
+    ctx.lineWidth = 2 + (1 - progress) * 4;
+    ctx.beginPath();
+    ctx.arc(this.empEffectOrigin.x, this.empEffectOrigin.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   _drawTile(ctx, r, c, t) {

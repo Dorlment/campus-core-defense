@@ -28,6 +28,17 @@ TB.CONFIG = {
   // 道具掉落概率（每次击毁）
   ITEM_DROP_CHANCE: 0.22,
   ITEM_DURATION: { helmet: 8000, shovel: 12000, timer: 6000 },
+
+  // EMP 能量技能
+  EMP: {
+    maxEnergy: 100,
+    energyPerKill: 20,
+    freezeDuration: 2000,
+    effectDuration: 500,
+  },
+
+  // 结算评级（仅按最终得分）
+  GRADE: { S: 5000, A: 3000, B: 1500 },
 };
 
 /* 地形类型 */
@@ -81,13 +92,14 @@ TB.DEFAULT_KEYMAP = {
   left:   ['ArrowLeft'],
   right:  ['ArrowRight'],
   fire:   ['Space', 'KeyJ'],
+  skill:  ['KeyK'],
   pause:  ['KeyP', 'Escape'],
   confirm:['Enter'],
   restart:['KeyR'],
 };
 TB.KEYMAP_LABELS = {
   up: '上移', down: '下移', left: '左移', right: '右移',
-  fire: '射击', pause: '暂停', confirm: '确认', restart: '重开',
+  fire: '射击', skill: 'EMP技能', pause: '暂停', confirm: '确认', restart: '重开',
 };
 
 /* 地图字符 -> 地形 */
