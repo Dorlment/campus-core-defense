@@ -93,15 +93,18 @@ npm.cmd test
 
 ### 主菜单
 
-（截图待添加）
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/ee00797d-84ee-4587-b24e-4f5351a34af8" />
+
 
 ### 游戏进行中
 
-（截图待添加）
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/1cf207fc-b419-4b7b-b7af-88c8d0e8c31b" />
+
 
 ### 战绩结算
 
-（截图待添加）
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/6ee636c0-1254-4a1e-81c6-edcb83e62c52" />
+
 
 ## 项目结构
 
